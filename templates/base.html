@@ -1,0 +1,200 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}CTI Dashboard{% endblock %}</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        .threat-critical { color: #dc3545; }
+        .threat-high { color: #fd7e14; }
+        .threat-medium { color: #ffc107; }
+        .threat-low { color: #20c997; }
+        .threat-clean { color: #198754; }
+        
+        .card-metric {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+        }
+        
+        .sidebar {
+            min-height: 100vh;
+            background-color: #f8f9fa;
+        }
+        
+        .main-content {
+            margin-left: 0;
+        }
+        
+        @media (min-width: 768px) {
+            .main-content {
+                margin-left: 250px;
+            }
+        }
+        
+        /* Real-time animations */
+        @keyframes blink {
+            0%, 50%, 100% { opacity: 1; }
+            25%, 75% { opacity: 0.3; }
+        }
+        
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+        
+        .live-indicator {
+            animation: pulse 2s infinite;
+        }
+        
+        .threat-alert {
+            animation: blink 0.5s ease-in-out 3;
+        }
+        
+        .realtime-card {
+            border-left: 4px solid #dc3545;
+            transition: all 0.3s ease;
+        }
+        
+        .realtime-card:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+        }
+        
+        /* Threat IP table styling */
+        .threat-ip-row[data-classification="critical"] {
+            border-left: 4px solid #dc3545;
+        }
+        
+        .threat-ip-row[data-classification="high"] {
+            border-left: 4px solid #fd7e14;
+        }
+        
+        .threat-ip-row[data-classification="medium"] {
+            border-left: 4px solid #ffc107;
+        }
+        
+        .threat-ip-row[data-classification="low"] {
+            border-left: 4px solid #20c997;
+        }
+        
+        .threat-ip-row:hover {
+            background-color: rgba(0,0,0,0.05);
+        }
+        
+        .progress {
+            font-size: 12px;
+            font-weight: bold;
+        }
+    </style>
+</head>
+<body>
+    <div class="container-fluid">
+        <div class="row">
+            <!-- Sidebar -->
+            <nav class="col-md-3 col-lg-2 d-md-block sidebar collapse">
+                <div class="position-sticky pt-3">
+                    <h5 class="text-center mb-4">
+                        <i class="fas fa-shield-alt"></i> CTI Dashboard
+                    </h5>
+                    <ul class="nav flex-column">
+                        <li class="nav-item">
+                            <a class="nav-link active" href="#dashboard" onclick="showSection('dashboard')">
+                                <i class="fas fa-tachometer-alt"></i> Dashboard
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#lookup" onclick="showSection('lookup')">
+                                <i class="fas fa-search"></i> Threat Lookup
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#iocs" onclick="showSection('iocs')">
+                                <i class="fas fa-list"></i> IOC Explorer
+                            </a>
+                        </li>
+                        <li class="nav-item">
+                            <a class="nav-link" href="#reports" onclick="showSection('reports')">
+                                <i class="fas fa-file-export"></i> Reports
+                            </a>
+                        </li>
+                    </ul>
+                </div>
+            </nav>
+
+            <!-- Main content -->
+            <main class="col-md-9 ms-sm-auto col-lg-10 px-md-4 main-content">
+                {% block content %}{% endblock %}
+            </main>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
+    <script>
+        // Initialize WebSocket connection
+        const socket = io();
+        
+        socket.on('connect', function() {
+            console.log('Connected to real-time feed');
+        });
+        
+        socket.on('disconnect', function() {
+            console.log('Disconnected from real-time feed');
+        });
+        
+        function showSection(sectionId) {
+            // Hide all sections
+            const sections = ['dashboard', 'lookup', 'iocs', 'reports'];
+            sections.forEach(id => {
+                const element = document.getElementById(id + '-section');
+                if (element) {
+                    element.style.display = 'none';
+                }
+            });
+            
+            // Show selected section
+            const targetSection = document.getElementById(sectionId + '-section');
+            if (targetSection) {
+                targetSection.style.display = 'block';
+            }
+            
+            // Update active nav
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            event.target.classList.add('active');
+        }
+        
+        // Utility functions
+        function formatThreatLevel(level) {
+            const colors = {
+                'critical': 'danger',
+                'high': 'warning', 
+                'medium': 'info',
+                'low': 'success',
+                'clean': 'secondary'
+            };
+            return `<span class="badge bg-${colors[level] || 'secondary'}">${level.toUpperCase()}</span>`;
+        }
+        
+        function showAlert(message, type = 'info') {
+            const alertDiv = document.createElement('div');
+            alertDiv.className = `alert alert-${type} alert-dismissible fade show`;
+            alertDiv.innerHTML = `
+                ${message}
+                <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+            `;
+            document.querySelector('.main-content').prepend(alertDiv);
+            
+            setTimeout(() => {
+                alertDiv.remove();
+            }, 5000);
+        }
+    </script>
+    {% block scripts %}{% endblock %}
+</body>
+</html>

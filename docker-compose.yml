@@ -1,0 +1,41 @@
+version: '3.8'
+
+services:
+  mongodb:
+    image: mongo:5.0
+    container_name: cti-mongodb
+    restart: unless-stopped
+    ports:
+      - "27017:27017"
+    environment:
+      MONGO_INITDB_DATABASE: cti_dashboard
+    volumes:
+      - mongodb_data:/data/db
+    networks:
+      - cti-network
+
+  cti-dashboard:
+    build: .
+    container_name: cti-dashboard-app
+    restart: unless-stopped
+    ports:
+      - "5000:5000"
+    environment:
+      - MONGODB_URI=mongodb://mongodb:27017/
+      - DATABASE_NAME=cti_dashboard
+      - FLASK_ENV=production
+    env_file:
+      - .env
+    depends_on:
+      - mongodb
+    networks:
+      - cti-network
+    volumes:
+      - ./logs:/app/logs
+
+volumes:
+  mongodb_data:
+
+networks:
+  cti-network:
+    driver: bridge
